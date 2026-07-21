@@ -1,0 +1,289 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local lp = Players.LocalPlayer
+local FILE_NAME = "SpwnCub_SoundDB.json"
+
+local oldGui = lp.PlayerGui:FindFirstChild("SpwnCub_SoundSystem")
+if oldGui then oldGui:Destroy() end
+
+local function Create(className, parent, properties, corner, stroke)
+    local obj = Instance.new(className)
+    for k, v in pairs(properties) do obj[k] = v end
+    if corner then Instance.new("UICorner", obj).CornerRadius = UDim.new(0, corner) end
+    if stroke then
+        local str = Instance.new("UIStroke", obj)
+        for k, v in pairs(stroke) do str[k] = v end
+    end
+    if parent then obj.Parent = parent end return obj
+end
+
+local ID_CLOSE_X, ID_PLAY, ID_PAUSE, ID_OPEN = "rbxassetid://98235327129327", "rbxassetid://139374730149050", "rbxassetid://79479421998352", "rbxassetid://124458914211157"
+local ID_SUN, ID_RENAME, ID_SAVE_ICON = "rbxassetid://85337967115080", "rbxassetid://105157650009654", "rbxassetid://76429920789174"
+
+local Color_BG, Color_Card, Color_SubText = Color3.fromRGB(12, 12, 14), Color3.fromRGB(20, 20, 22), Color3.fromRGB(140, 140, 145)
+local savedSongs = {}
+local isLoopingActive = false
+local loopTask = nil
+
+local function loadPlaylist()
+    local s, r = pcall(function() return readfile and readfile(FILE_NAME) end)
+    if s and r then
+        local ds, dr = pcall(function() return HttpService:JSONDecode(r) end)
+        if ds and type(dr) == "table" then savedSongs = dr end
+    end
+end
+
+local function savePlaylist()
+    pcall(function() if writefile then writefile(FILE_NAME, HttpService:JSONEncode(savedSongs)) end end)
+end
+loadPlaylist()
+
+local ScreenGui = Create("ScreenGui", lp.PlayerGui, { Name = "SpwnCub_SoundSystem", ResetOnSpawn = false })
+local OpenBtn = Create("ImageButton", ScreenGui, { Name = "OpenToggleBtn", Size = UDim2.new(0, 50, 0, 50), Position = UDim2.new(0, 20, 0.5, -25), BackgroundTransparency = 1, Image = ID_OPEN })
+local MainFrame = Create("Frame", ScreenGui, { Name = "MainFrame", Size = UDim2.new(0, 260, 0, 420), Position = UDim2.new(0.5, -130, 0.5, -210), BackgroundColor3 = Color_BG, BorderSizePixel = 0, ClipsDescendants = true, Visible = true, Active = true }, 14, { Color = Color3.fromRGB(255, 255, 255), Thickness = 1 })
+
+local SunBg = Create("ImageLabel", MainFrame, { Size = UDim2.new(0, 280, 0, 280), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.6, 0), BackgroundTransparency = 1, Image = ID_SUN, ImageTransparency = 0.7, ZIndex = 1 })
+local rotConn; rotConn = RunService.RenderStepped:Connect(function(dt)
+    if not MainFrame.Parent then rotConn:Disconnect() return end
+    SunBg.Rotation = (SunBg.Rotation + dt * 15) % 360
+end)
+
+-- Cabeçalho & Seções
+Create("TextLabel", MainFrame, { Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 0, 10), BackgroundTransparency = 1, Text = "Som ALL | SpwnCub V1", TextColor3 = Color3.new(1, 1, 1), TextSize = 18, Font = Enum.Font.Arcade, ZIndex = 2 })
+Create("TextLabel", MainFrame, { Size = UDim2.new(1, 0, 0, 15), Position = UDim2.new(0, 0, 0, 38), BackgroundTransparency = 1, Text = "((p)   LOOP DE SOM POR ID   q))", TextColor3 = Color_SubText, TextSize = 9, Font = Enum.Font.Arcade, ZIndex = 2 })
+
+local InputSection = Create("Frame", MainFrame, { Size = UDim2.new(1, -24, 0, 70), Position = UDim2.new(0, 12, 0, 60), BackgroundColor3 = Color_BG, BackgroundTransparency = 0.4, ZIndex = 2 }, 8)
+Create("TextLabel", InputSection, { Size = UDim2.new(1, -16, 0, 18), Position = UDim2.new(0, 10, 0, 6), BackgroundTransparency = 1, Text = "ID DO SOM", TextColor3 = Color_SubText, TextSize = 10, Font = Enum.Font.Arcade, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2 })
+local IdInput = Create("TextBox", InputSection, { Size = UDim2.new(0.65, -10, 0, 32), Position = UDim2.new(0, 10, 0, 28), BackgroundColor3 = Color_Card, Text = "", PlaceholderText = "Digite o ID do som...", PlaceholderColor3 = Color3.fromRGB(100, 100, 105), TextColor3 = Color3.new(1, 1, 1), TextSize = 10, Font = Enum.Font.Arcade, ClearTextOnFocus = false, ZIndex = 2 }, 6)
+local SaveBtn = Create("TextButton", InputSection, { Size = UDim2.new(0.35, -10, 0, 32), Position = UDim2.new(0.65, 5, 0, 28), BackgroundColor3 = Color_Card, Text = "       SALVAR", TextColor3 = Color3.new(1, 1, 1), TextSize = 10, Font = Enum.Font.Arcade, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2 }, 6)
+Create("ImageLabel", SaveBtn, { Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(0, 6, 0.5, -9), BackgroundTransparency = 1, Image = ID_SAVE_ICON, ZIndex = 3 })
+
+-- Controles de Som
+local ControlsFrame = Create("Frame", MainFrame, { Size = UDim2.new(1, -24, 0, 45), Position = UDim2.new(0, 12, 0, 138), BackgroundTransparency = 1, ZIndex = 2 })
+local LoopBtn = Create("TextButton", ControlsFrame, { Size = UDim2.new(0.48, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundColor3 = Color_Card, Text = "       ATIVAR LOOP", TextColor3 = Color3.new(1, 1, 1), TextSize = 9, Font = Enum.Font.Arcade, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2 }, 8)
+Create("ImageLabel", LoopBtn, { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 8, 0.5, -10), BackgroundTransparency = 1, Image = ID_PLAY, ZIndex = 2 })
+local StopBtn = Create("TextButton", ControlsFrame, { Size = UDim2.new(0.48, 0, 1, 0), Position = UDim2.new(0.52, 0, 0, 0), BackgroundColor3 = Color_Card, Text = "       DESATIVAR SOM", TextColor3 = Color3.new(1, 1, 1), TextSize = 9, Font = Enum.Font.Arcade, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2 }, 8)
+Create("ImageLabel", StopBtn, { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 8, 0.5, -10), BackgroundTransparency = 1, Image = ID_PAUSE, ZIndex = 2 })
+
+-- Lista de Músicas
+local ListContainer = Create("Frame", MainFrame, { Size = UDim2.new(1, -24, 0, 220), Position = UDim2.new(0, 12, 0, 190), BackgroundColor3 = Color_BG, BackgroundTransparency = 0.4, ZIndex = 2 }, 8)
+local ListHeader = Create("TextLabel", ListContainer, { Size = UDim2.new(1, -20, 0, 25), Position = UDim2.new(0, 10, 0, 2), BackgroundTransparency = 1, Text = "IDS SALVOS (0)", TextColor3 = Color_SubText, TextSize = 10, Font = Enum.Font.Arcade, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2 })
+local SongScroll = Create("ScrollingFrame", ListContainer, { Size = UDim2.new(1, -12, 1, -30), Position = UDim2.new(0, 6, 0, 26), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = Color_SubText, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 2 })
+local ScrollLayout = Create("UIListLayout", SongScroll, { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) })
+local CloseMainBtn = Create("ImageButton", MainFrame, { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -34, 1, -34), BackgroundColor3 = Color_Card, Image = ID_CLOSE_X, ZIndex = 3 }, 6)
+
+-- Função do Sistema de Áudio All puxando diretamente dos IDs salvos na interface
+local function tocarEmOutroJogador(targetPlayer)
+    if targetPlayer == lp then return end
+    if #savedSongs == 0 then return end
+    
+    local character = targetPlayer.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local selectedSong = savedSongs[math.random(1, #savedSongs)]
+    local audioID = selectedSong.id
+    
+    local GunSoundEvent = ReplicatedStorage:FindFirstChild("1GuinSound1s", true)
+    if GunSoundEvent then
+        task.spawn(function()
+            pcall(function()
+                GunSoundEvent:FireServer(hrp, audioID, 10)
+            end)
+        end)
+    end
+    
+    local GuinRemote = ReplicatedStorage:FindFirstChild("RE") and ReplicatedStorage.RE:FindFirstChild("1Gu1n")
+    if GuinRemote then
+        task.spawn(function()
+            pcall(function()
+                GuinRemote:FireServer(
+                    hrp,
+                    hrp,
+                    Vector3.new(0, -1, 0),
+                    Vector3.new(0, 0, 0),
+                    hrp,
+                    hrp,
+                    audioID,
+                    audioID,
+                    {[1] = true},
+                    {
+                        [1] = 25,
+                        [2] = Vector3.new(0.25, 0.25, 100),
+                        [3] = BrickColor.new('Bright yellow'),
+                        [4] = 0.25,
+                        [5] = Enum.Material.SmoothPlastic,
+                        [6] = 0.25
+                    },
+                    true,
+                    false
+                )
+            end)
+        end)
+    end
+    
+    task.spawn(function()
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://" .. audioID
+            sound.Volume = 10
+            sound.Parent = hrp
+            sound:Play()
+            
+            sound.Ended:Connect(function()
+                sound:Destroy()
+            end)
+            
+            task.delay(30, function()
+                if sound and sound.Parent then
+                    sound:Destroy()
+                end
+            end)
+        end)
+    end)
+end
+
+-- Botões de Ativar e Desativar Loop na Interface
+LoopBtn.MouseButton1Click:Connect(function()
+    if #savedSongs == 0 then
+        LoopBtn.Text = "       SEM IDS!"
+        task.delay(1.5, function()
+            LoopBtn.Text = "       ATIVAR LOOP"
+        end)
+        return
+    end
+    
+    if not isLoopingActive then
+        isLoopingActive = true
+        LoopBtn.Text = "       LOOP ATIVO"
+        
+        loopTask = task.spawn(function()
+            while isLoopingActive do
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= lp and plr.Character then
+                        tocarEmOutroJogador(plr)
+                    end
+                end
+                task.wait(2)
+            end
+        end)
+    end
+end)
+
+StopBtn.MouseButton1Click:Connect(function()
+    isLoopingActive = false
+    LoopBtn.Text = "       ATIVAR LOOP"
+    if loopTask then
+        task.cancel(loopTask)
+        loopTask = nil
+    end
+end)
+-- Atualização e Gerenciamento Visual da Lista de IDs Salvos
+local function updateListVisual()
+    for _, item in ipairs(SongScroll:GetChildren()) do
+        if item:IsA("Frame") then item:Destroy() end
+    end
+    ListHeader.Text = "IDS SALVOS (" .. #savedSongs .. ")"
+
+    for index, songData in ipairs(savedSongs) do
+        local Card = Create("Frame", SongScroll, { Size = UDim2.new(1, -4, 0, 42), BackgroundColor3 = Color_Card, BorderSizePixel = 0, ZIndex = 2 }, 6)
+        local PlayItemBtn = Create("ImageButton", Card, { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 8, 0.5, -10), BackgroundTransparency = 1, Image = ID_PLAY, ZIndex = 2 })
+        local NameLabel = Create("TextLabel", Card, { Size = UDim2.new(0.55, 0, 0, 16), Position = UDim2.new(0, 36, 0, 5), BackgroundTransparency = 1, Text = songData.name, TextColor3 = Color3.new(1, 1, 1), TextSize = 10, Font = Enum.Font.Arcade, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2 })
+        local NameInput = Create("TextBox", Card, { Size = UDim2.new(0.55, 0, 0, 18), Position = UDim2.new(0, 36, 0, 4), BackgroundColor3 = Color3.fromRGB(35, 35, 40), Text = songData.name, TextColor3 = Color3.new(1, 1, 1), TextSize = 10, Font = Enum.Font.Arcade, Visible = false, ZIndex = 5, ClearTextOnFocus = false }, 4)
+        Create("TextLabel", Card, { Size = UDim2.new(0.55, 0, 0, 14), Position = UDim2.new(0, 36, 0, 21), BackgroundTransparency = 1, Text = tostring(songData.id), TextColor3 = Color_SubText, TextSize = 9, Font = Enum.Font.Arcade, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 2 })
+        local RenameBtn = Create("ImageButton", Card, { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(1, -44, 0.5, -8), BackgroundTransparency = 1, Image = ID_RENAME, ZIndex = 2 })
+        local DelItemBtn = Create("ImageButton", Card, { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(1, -22, 0.5, -8), BackgroundTransparency = 1, Image = ID_CLOSE_X, ZIndex = 2 })
+
+        PlayItemBtn.MouseButton1Click:Connect(function()
+            IdInput.Text = tostring(songData.id)
+        end)
+
+        RenameBtn.MouseButton1Click:Connect(function()
+            NameLabel.Visible = false
+            NameInput.Visible = true
+            NameInput:CaptureFocus()
+        end)
+
+        NameInput.FocusLost:Connect(function()
+            if NameInput.Text ~= "" then
+                songData.name = NameInput.Text
+                savePlaylist()
+            end
+            NameLabel.Text = songData.name
+            NameInput.Visible = false
+            NameLabel.Visible = true
+        end)
+
+        DelItemBtn.MouseButton1Click:Connect(function()
+            table.remove(savedSongs, index)
+            savePlaylist()
+            updateListVisual()
+        end)
+    end
+    SongScroll.CanvasSize = UDim2.new(0, 0, 0, ScrollLayout.AbsoluteContentSize.Y + 10)
+end
+
+-- Botão Salvar Novo ID
+SaveBtn.MouseButton1Click:Connect(function()
+    local idDigitado = IdInput.Text:match("%d+")
+    if idDigitado then
+        table.insert(savedSongs, {id = idDigitado, name = "Som " .. (#savedSongs + 1)})
+        savePlaylist()
+        updateListVisual()
+        IdInput.Text = ""
+    end
+end)
+
+-- Fechar o Script Completamente
+CloseMainBtn.MouseButton1Click:Connect(function()
+    isLoopingActive = false
+    ScreenGui:Destroy()
+end)
+
+-- Abrir e Fechar Menu Principal
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- Jogador novo entra e ativa se o loop estiver ativo
+Players.PlayerAdded:Connect(function(newPlayer)
+    if newPlayer == lp then return end
+    
+    newPlayer.CharacterAdded:Connect(function(character)
+        if isLoopingActive then
+            task.wait(0.5)
+            tocarEmOutroJogador(newPlayer)
+        end
+    end)
+end)
+
+-- Sistema de Arrastar (Draggable)
+local function makeDraggable(obj)
+    local dragging, dragStart, startPos
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = obj.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(MainFrame)
+makeDraggable(OpenBtn)
+updateListVisual()
